@@ -73,14 +73,4 @@ class SimpleCNN(nn.Module):
         x = self.fc3(x)
         return x
 
-if __name__ == '__main__':
-    # model = SimpleNeuralNetwork()
-    model = SimpleCNN()
-    input_data = torch.rand(8, 3, 224, 224)
-    if torch.cuda.is_available():
-        model.cuda()
-        input_data = input_data.cuda()
-    while True:
-        result = model(input_data)
-        print(result.shape)
-        break
+
