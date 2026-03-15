@@ -1,50 +1,50 @@
 from argparse import ArgumentParser
-import numpy as np
-from models import SimpleCNN
 import torch
-import torch.nn as nn
+from simplenetwork import simpleCNN
 import cv2
-
-
+import torch.nn as nn
+import numpy as np
+from torchsummary import summary
 def get_args():
-    parser = ArgumentParser(description="CNN inference")
-    parser.add_argument("--image-path", "-p", type=str, default=None)
-    parser.add_argument("--image-size", "-i", type=int, default=224, help="Image size")
-    parser.add_argument("--checkpoint", "-c", type=str, default="trained_models/best_cnn.pt")
+    parser = ArgumentParser("CNN inference")
+    parser.add_argument("--image_size", type=int, default=224, help="size of each image dimension")
+    parser.add_argument("--image_path", type= str, default=None)
+    parser.add_argument("--checkpoint", type=str, default="train_models/best_model.pt", help="train model")
     args = parser.parse_args()
     return args
-
-
-if __name__ == '__main__':
-    categories = ["butterfly", "cat", "chicken", "cow", "dog", "elephant", "horse", "sheep", "spider", "squirrel"]
+if __name__ == "__main__":
+    categories = ['butterfly', 'cat', 'chicken', 'cow', 'dog', 'elephant', 'horse', 'sheep', 'spider', 'squirrel']
     args = get_args()
+    model = simpleCNN()
     if torch.cuda.is_available():
         device = torch.device("cuda")
-    else:
+    else :
         device = torch.device("cpu")
-
-    model = SimpleCNN(num_classes=10).to(device)
-    if args.checkpoint:
-        checkpoint = torch.load(args.checkpoint)
-        model.load_state_dict(checkpoint["model"])
-    else:
-        print("No checkpoint found!")
-        exit(0)
+    model = simpleCNN(10).to(device)
+    if args.checkpoint :
+        checkpoint = torch.load(args.checkpoint, weights_only=False)
+        model.load_state_dict(checkpoint["state_dict"])
+    else :
+        print("No checkpoint found")
+        exit()
     model.eval()
-
+    summary(model, (3, 224, 224))
     ori_image = cv2.imread(args.image_path)
-    image = cv2.cvtColor(ori_image, cv2.COLOR_BGR2RGB)
+    image = cv2.cvtColor(ori_image , cv2.COLOR_BGR2RGB)
     image = cv2.resize(image, (args.image_size, args.image_size))
     image = np.transpose(image, (2, 0, 1))/255.0
-    image = image[None, :,:,:]   # 1 x 3 x 224 x 224
+    image = image[None, : ,:, :]
     image = torch.from_numpy(image).to(device).float()
-    softmax = nn.Softmax()
+    sortmax = nn.Softmax()
     with torch.no_grad():
         output = model(image)
-        probs = softmax(output)
+        print(output)
+        probs = sortmax(output)
+        print(probs)
 
     max_idx = torch.argmax(probs)
-    predicted_class = categories[max_idx]
-    print("The test image is about {} with confident score of {}".format(predicted_class, probs[0, max_idx]))
-    cv2.imshow("{}:{:.2f}%".format(predicted_class, probs[0, max_idx]*100), ori_image)
+    print(categories[max_idx])
+    cv2.imshow("{}:{:.2f}%".format(categories[max_idx], probs[0,max_idx]), ori_image )
     cv2.waitKey(0)
+
+
