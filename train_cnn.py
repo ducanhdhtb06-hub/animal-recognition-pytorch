@@ -1,32 +1,32 @@
 import os.path
+import shutil
 
-import torch.optim
-from dataset import  AnimalDataset
-from models import SimpleCNN
-from torch.utils.data import DataLoader
+from torch.utils.checkpoint import checkpoint
+
+from AnimaDataset import AnimaDataset
+from simplenetwork import simpleCNN
+from torch.utils.data import DataLoader , Dataset
 import torch.nn as nn
 from torchvision.transforms import Compose, Resize, ToTensor, Normalize, RandomAffine, ColorJitter
-from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
-from argparse import ArgumentParser
-from tqdm.autonotebook import tqdm
+import torch.optim as optim
+import torch
+from sklearn.metrics import classification_report, accuracy_score , confusion_matrix
 from torch.utils.tensorboard import SummaryWriter
+from argparse import ArgumentParser
+import shutil
+from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
-import shutil
-from PIL import Image
 
 def get_args():
-    parser = ArgumentParser(description="CNN training")
-    parser.add_argument("--root", "-r", type=str, default="animals_v2", help="Root of the dataset")
-    parser.add_argument("--epochs", "-e", type=int, default=100, help="Number of epochs")
-    parser.add_argument("--batch-size", "-b", type=int, default=8, help="Batch size")
-    parser.add_argument("--image-size", "-i", type=int, default=224, help="Image size")
-    parser.add_argument("--logging", "-l", type=str, default="tensorboard")
-    parser.add_argument("--trained_models", "-t", type=str, default="trained_models")
-    parser.add_argument("--checkpoint", "-c", type=str, default=None)
+    parser = ArgumentParser("CNN")
+    parser.add_argument("--epochs", type=int, default=100, help="number of epochs")
+    parser.add_argument("--batch_size", type=int, default=8, help="size of the batches")
+    parser.add_argument("--image_size", type=int, default=224, help="size of each image dimension")
+    parser.add_argument("--r", type=str, default="animals_v2/animals", help="root path of dataset")
+    parser.add_argument("--checkpoint", type=str, default="train_models/last_model.pt", help="root path of dataset")
     args = parser.parse_args()
     return args
-
 def plot_confusion_matrix(writer, cm, class_names, epoch):
     """
     Returns a matplotlib figure containing the plotted confusion matrix.
@@ -62,123 +62,115 @@ def plot_confusion_matrix(writer, cm, class_names, epoch):
     writer.add_figure('confusion_matrix', figure, epoch)
 
 if __name__ == '__main__':
+    num_epochs = 100
+
     args = get_args()
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
-    train_transform= Compose([
-            RandomAffine(
-                degrees=(-5,5),
-                translate=(0.15, 0.15),
-                scale=(0.85, 1.15),
-                shear = 5
-            ),
-            Resize((args.image_size, args.image_size)),
+    train_transform = Compose([
+        RandomAffine(
+            degrees=(-5, 5),
+            translate=(0.15, 0.15),
+            scale=(0.85, 1.15),
+            shear=5
+        ),
+        Resize((args.image_size, args.image_size)),
         ColorJitter(
             brightness=0.125,
             contrast=0.5,
             saturation=0.4,
             hue=0.1
-        )   ,
-            ToTensor(),
-        ])
-
+        ),
+        ToTensor(),
+    ])
     test_transform = Compose([
         Resize((args.image_size, args.image_size)),
         ToTensor(),
     ])
-    train_dataset = AnimalDataset(root=args.root, train=True, transform=train_transform)
-    train_dataloader = DataLoader(
-        dataset=train_dataset,
+    train_dataset = AnimaDataset(root=args.r, train=True, transform=train_transform)
+    train_loader = DataLoader(
+        dataset = train_dataset,
         batch_size=args.batch_size,
         shuffle=True,
-        num_workers=4,
-        drop_last=True
-    )
-
-    test_dataset = AnimalDataset(root=args.root, train=False, transform=test_transform)
-    test_dataloader = DataLoader(
+        num_workers=2,
+        drop_last=True)
+    test_dataset = AnimaDataset(root=args.r, train=False, transform=test_transform)
+    test_loader = DataLoader(
         dataset=test_dataset,
         batch_size=args.batch_size,
         shuffle=False,
-        num_workers=4,
-        drop_last=False
-    )
-    if os.path.isdir(args.logging):
-        shutil.rmtree(args.logging)
-    if not os.path.isdir(args.trained_models):
-        os.mkdir(args.trained_models)
-    writer = SummaryWriter(args.logging)
-    model = SimpleCNN(num_classes=10).to(device)
+        num_workers=2,
+        drop_last=False)
+    model = simpleCNN(num_classes=10)
+    train_models = "train_models"
+
+
+    if os.path.isdir("tensorboard"):
+        shutil.rmtree("tensorboard")
+    if not os.path.isdir(train_models):
+        os.mkdir(train_models)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    writer = SummaryWriter("tensorboard")
+    if torch.cuda.is_available():
+        model.cuda()
 
     if args.checkpoint:
-        checkpoint = torch.load(args.checkpoint)
+        checkpoint = torch.load(args.checkpoint , weights_only=False)
+        model.load_state_dict(checkpoint["state_dict"])
         start_epoch = checkpoint["epoch"]
-        best_acc = checkpoint["best_acc"]
-        model.load_state_dict(checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
-    else:
+        best_accuracy = checkpoint["best_accuracy"]
+    else :
         start_epoch = 0
-        best_acc = 0
+        best_accuracy = 0
 
-    num_iters = len(train_dataloader)
-
-
-    for epoch in range(start_epoch, args.epochs):
+    for epoch in range(  start_epoch , args.epochs):
         model.train()
-        progress_bar = tqdm(train_dataloader, colour="green")
-        for iter, (images, labels) in enumerate(progress_bar):
-            images = images.to(device)
-            labels = labels.to(device)
-            # forward
+        progress_bar = tqdm(train_loader , colour= "green")
+        for iters , (images , labels) in enumerate(progress_bar):
+            if torch.cuda.is_available():
+                images = images.cuda()
+                labels = labels.cuda()
             outputs = model(images)
-            loss_value = criterion(outputs, labels)
-            progress_bar.set_description("Epoch {}/{}. Iteration {}/{}. Loss {:.3f}".format(epoch+1, args.epochs, iter+1, num_iters, loss_value))
-            writer.add_scalar("Train/Loss", loss_value, epoch*num_iters+iter)
-            # backward
+            loss = criterion(outputs, labels)
+            writer.add_scalar('train/loss', loss, epoch * len(train_loader) + iters)
+            progress_bar.set_description("Epoc {}/{}. Iteration {}/{}. loss{}".format(epoch+1, args.epochs, iters + 1, len(train_loader), loss))
             optimizer.zero_grad()
-            loss_value.backward()
+            loss.backward()
             optimizer.step()
-
         model.eval()
         all_predictions = []
         all_labels = []
-        for iter, (images, labels) in enumerate(test_dataloader):
+
+        for iters, (images, labels) in enumerate(test_loader):
             all_labels.extend(labels)
-            images = images.to(device)
-            labels = labels.to(device)
-
+            if torch.cuda.is_available():
+                images = images.cuda()
+                labels = labels.cuda()
             with torch.no_grad():
-                predictions = model(images)   # predictions shape 64x10
-                indices = torch.argmax(predictions.cpu(), dim=1)
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                indices = torch.argmax(outputs.cpu(), 1)
                 all_predictions.extend(indices)
-                loss_value = criterion(predictions, labels)
         all_labels = [label.item() for label in all_labels]
-        all_predictions = [prediction.item() for prediction in all_predictions]
-        plot_confusion_matrix(writer, confusion_matrix(all_labels, all_predictions), class_names=test_dataset.categories, epoch=epoch)
-        accuracy = accuracy_score(all_labels, all_predictions)
-        print("Epoch {}: Accuracy: {}".format(epoch+1, accuracy))
-        writer.add_scalar("Val/Accuracy", accuracy, epoch)
-        torch.save(model.state_dict(), "{}/last_cnn.pt".format(args.trained_models))
+        all_predictions = [indices.item() for indices in all_predictions]
+        plot_confusion_matrix(writer, confusion_matrix(all_labels, all_predictions),
+                              class_names=test_dataset.categories, epoch=epoch)
+        print("Epoch {}: Accurancy: {}".format(epoch+1, accuracy_score(all_labels, all_predictions)))
+        writer.add_scalar('test/accuracy', accuracy_score(all_labels, all_predictions), epoch+1)
         checkpoint = {
-            "epoch": epoch+1,
-            "model": model.state_dict(),
-            "optimizer": optimizer.state_dict()
+            'epoch': epoch + 1,
+            'state_dict': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'best_accuracy': accuracy_score(all_labels, all_predictions)
         }
-        torch.save(checkpoint, "{}/last_cnn.pt".format(args.trained_models))
-        if accuracy > best_acc:
+        torch.save(checkpoint, "{}/last_model.pt".format(train_models))
+        if best_accuracy < accuracy_score(all_labels, all_predictions):
+            best_accuracy = accuracy_score(all_labels, all_predictions)
             checkpoint = {
-                "epoch": epoch + 1,
-                "best_acc": best_acc,
-                "model": model.state_dict(),
-                "optimizer": optimizer.state_dict()
+                'epoch': epoch + 1,
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'best_accuracy': best_accuracy,
             }
-            torch.save(checkpoint, "{}/best_cnn.pt".format(args.trained_models))
-            best_acc = accuracy
-        # print(classification_report(all_labels, all_predictions))
-
-
+            torch.save(checkpoint, "{}/best_model.pt".format(train_models))
 
