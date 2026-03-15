@@ -34,13 +34,5 @@ class simpleCNN(nn.Module):
         x= self.Flatten(x)
         x = self.fc1(x)
         return x
-if __name__ == '__main__':
-    model = simpleCNN()
-    input_data = torch.randn(8 , 3 ,224,224)
-    model.cuda()
-    input_data = input_data.cuda()
-    while True :
-        output = model(input_data)
-        print(output.shape)
-        break
+
 
