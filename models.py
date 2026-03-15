@@ -1,76 +1,46 @@
 import torch
 import torch.nn as nn
-
-class SimpleNeuralNetwork(nn.Module):
-    def __init__(self, num_classes=10):
+import torch
+class simpleCNN(nn.Module):
+    def __init__(self, num_classes = 10):
         super().__init__()
-        self.flatten = nn.Flatten()
-        self.fc = nn.Sequential(
-            nn.Linear(in_features=3 * 32 * 32, out_features=256),
-            nn.ReLU(),
-            nn.Linear(in_features=256, out_features=512),
-            nn.ReLU(),
-            nn.Linear(in_features=512, out_features=1024),
-            nn.ReLU(),
-            nn.Linear(in_features=1024, out_features=512),
-            nn.ReLU(),
-            nn.Linear(in_features=512, out_features=num_classes),
-            nn.ReLU()
-        )
-
-
-    def forward(self, x):
-        x = self.flatten(x)
-        x = self.fc(x)
-        return x
-
-class SimpleCNN(nn.Module):
-    def __init__(self, num_classes=10):
-        super().__init__()
-        self.conv1 = self.make_block(in_channels=3, out_channels=8)
-        self.conv2 = self.make_block(in_channels=8, out_channels=16)
-        self.conv3 = self.make_block(in_channels=16, out_channels=32)
-        self.conv4 = self.make_block(in_channels=32, out_channels=64)
-        self.conv5 = self.make_block(in_channels=64, out_channels=128)
-
-        self.fc1 = nn.Sequential(
-            nn.Dropout(p=0.5),
+        self.conv1 = nn.Sequential(self.make_block(in_channels=3, out_channels=8),
+                     self.make_block(in_channels=8, out_channels=16),
+                     self.make_block(in_channels=16, out_channels=32),
+                     self.make_block(in_channels=32, out_channels=64),
+                     self.make_block(in_channels=64, out_channels=128))
+        self.Flatten = nn.Flatten()
+        self.fc1  = nn.Sequential(
+            nn.Dropout(0.5),
             nn.Linear(in_features=6272, out_features=512),
-            nn.LeakyReLU()
-        )
-        self.fc2 = nn.Sequential(
-            nn.Dropout(p=0.5),
+            nn.ReLU(),
+            nn.Dropout(0.5),
             nn.Linear(in_features=512, out_features=1024),
-            nn.LeakyReLU()
-        )
-        self.fc3 = nn.Sequential(
-            nn.Dropout(p=0.5),
-            nn.Linear(in_features=1024, out_features=num_classes),
-        )
-
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(in_features=1024, out_features=10))
 
     def make_block(self, in_channels, out_channels):
         return nn.Sequential(
-            nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=1, padding="same"),
-            nn.BatchNorm2d(num_features=out_channels),
+            nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding="same", stride=1),
+            nn.BatchNorm2d(out_channels),
             nn.LeakyReLU(),
-            nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1, padding="same"),
-            nn.BatchNorm2d(num_features=out_channels),
+            nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding="same", stride=1),
+            nn.BatchNorm2d(out_channels),
             nn.LeakyReLU(),
-            nn.MaxPool2d(kernel_size=2)
-        )
-
-
-    def forward(self, x):
+            nn.MaxPool2d(2, 2))
+    def forward(self , x):
         x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = self.conv4(x)
-        x = self.conv5(x)
-        x = x.view(x.shape[0], -1)
+        x= self.Flatten(x)
         x = self.fc1(x)
-        x = self.fc2(x)
-        x = self.fc3(x)
         return x
-
+if __name__ == '__main__':
+    model = simpleCNN()
+    input_data = torch.randn(8 , 3 ,224,224)
+    model.cuda()
+    input_data = input_data.cuda()
+    while True :
+        output = model(input_data)
+        print(output.shape)
+        break
 
