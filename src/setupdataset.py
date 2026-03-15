@@ -5,7 +5,6 @@ import torch
 from torch.utils.data import Dataset
 import cv2
 from torchvision.transforms import ToTensor
-from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_tensor
 from torchvision.transforms import ToTensor, Resize , Compose
