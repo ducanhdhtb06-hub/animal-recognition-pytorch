@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import Dataset
 import cv2
 from torchvision.transforms import ToTensor
+from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_tensor
 from torchvision.transforms import ToTensor, Resize , Compose
@@ -41,3 +42,19 @@ class AnimaDataset(Dataset) :
         label = self.labels[idx]
         return image , label
 
+if __name__ =='__main__':
+    root = "animals_v2/animals"
+    transform = Compose([
+        Resize((200, 200)),
+        ToTensor(),
+
+    ])
+    training_data =  AnimaDataset(root="animals_v2/animals", train=True, transform=transform)
+    training_loader = DataLoader(
+            dataset=training_data,
+            batch_size=16,
+            num_workers=2,
+            shuffle=True)
+    for images, labels in training_loader:
+            print(images.shape)
+            print(labels)
