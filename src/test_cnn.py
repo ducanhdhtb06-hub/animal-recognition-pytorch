@@ -46,5 +46,3 @@ if __name__ == "__main__":
     print(categories[max_idx])
     cv2.imshow("{}:{:.2f}%".format(categories[max_idx], probs[0,max_idx] *100), ori_image )
     cv2.waitKey(0)
-
-
