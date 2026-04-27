@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 
 def get_args():
     parser = ArgumentParser("CNN")
-    parser.add_argument("--epochs", type=int, default=100, help="number of epochs")
+    parser.add_argument("--epochs", type=int, default=1000, help="number of epochs")
     parser.add_argument("--batch_size", type=int, default=8, help="size of the batches")
     parser.add_argument("--image_size", type=int, default=224, help="size of each image dimension")
     parser.add_argument("--r", type=str, default="animals_v2/animals", help="root path of dataset")
@@ -173,4 +173,3 @@ if __name__ == '__main__':
                 'best_accuracy': best_accuracy,
             }
             torch.save(checkpoint, "{}/best_model.pt".format(train_models))
-
